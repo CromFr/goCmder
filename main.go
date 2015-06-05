@@ -5,8 +5,8 @@ import (
 	"log"
 	"github.com/gorilla/websocket"
 	"net/http"
-	"os"
 	"os/exec"
+	"io/ioutil"
 )
 
 
@@ -31,27 +31,23 @@ func WebsocketHdl(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	log.Println("Succesfully upgraded connection")
+	//log.Println("Succesfully upgraded connection")
 
 	lastConn = conn
 }
 
 func RunCode(res http.ResponseWriter, req *http.Request) {
+	source := req.FormValue("source")
 	
-	code := req.FormValue("code")
-
-	f, _ := os.Create("source")
-	f.WriteString(code)
-	f.Sync()
-	f.Close()
+	err := ioutil.WriteFile("source", []byte(source), 0755)
+    if err != nil {
+		fmt.Println("Error while writing file: ",err)
+		lastConn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+        return;
+    }
 	
 	cmd := exec.Command("sh", "-c", req.FormValue("cmd"))
-	cmdout, err := cmd.Output()
-	if err != nil {
-		fmt.Println(err)
-		fmt.Fprintln(res, err)
-		return
-	}
+	cmdout, err := cmd.CombinedOutput()
 	
 	if lastConn != nil {
 		lastConn.WriteMessage(websocket.TextMessage, cmdout)
